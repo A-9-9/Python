@@ -1,4 +1,5 @@
 import datetime
+from enum import Enum, unique
 class Field(object):
     def __init__(self, name, column_type):
         self.name = name
@@ -19,6 +20,7 @@ class TimeField(Field):
     def __init__(self, name):
         return super(TimeField, self).__init__(name, 'CURRENT_TIMESTAMP')
 
+
 class ModelMetaclass(type):
     def __new__(cls, name, bases, attrs):
         if name == 'Model':
@@ -29,6 +31,8 @@ class ModelMetaclass(type):
             if isinstance(v, Field):
                 print('Found mapping: %s ==> %s' % (k, v.name))
                 mappings[k] = v.name
+            elif isinstance(v, Enum):
+                print('Found a new Enum.')
         for k in mappings.keys():
             attrs.pop(k)
         attrs['__mappings__'] = mappings
@@ -55,7 +59,11 @@ class Model(dict, metaclass=ModelMetaclass):
         for k, v in self.__mappings__.items():
             fields.append(v)
             parameters.append('?')
-            args.append(getattr(self, k, None))
+            if isinstance(getattr(self, k, None), Enum):
+                args.append(getattr(self, k, None).value)
+            else:
+                args.append(getattr(self, k, None))
+
         sql = 'insert into %s (%s) values (%s)' % (self.__table__, ','.join(fields), ','.join(parameters))
         final_sql = 'insert into %s (%s) values (%s)' % (self.__table__, ','.join(fields), ','.join(map(repr, args)))
         print('SQL: %s' % sql)
@@ -71,6 +79,20 @@ class User(Model):
     time = TimeField('date')
 
 # 创建一个实例：
-u = User(id=12345, name='Michael', email='test@orm.org', password='my-pwd', time=str(datetime.datetime.now()))
+# u = User(id=12345, name='Michael', email='test@orm.org', password='my-pwd', time=str(datetime.datetime.now()))
 # 保存到数据库：
-u.save()
+# u.save()
+
+@unique
+class Gender(Enum):
+    MALE = 1
+    FEMALE = 2
+
+class Student(Model):
+    id = IntegerField('Sid')
+    name = StringField('name')
+    phone = StringField('phone')
+    gender = StringField('gender')
+
+s1 = Student(id='s001', name='Ken', phone='0912345678', gender=Gender.MALE)
+s1.save()
